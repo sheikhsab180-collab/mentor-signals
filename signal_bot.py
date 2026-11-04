@@ -264,7 +264,7 @@ def main():
         except Exception as e:
             print(sym, "error:", e)
             continue
-        print(sym, res["stage"], res.get("key"))
+        print(sym, res["stage"], res.get("key"), "|", res["text"].replace("\n", " "))
         key, stage = res.get("key"), res["stage"]
         if stage in ("forming", "signal") and key:
             done = st["alerts"].get(key)
