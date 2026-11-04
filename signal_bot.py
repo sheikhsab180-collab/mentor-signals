@@ -21,6 +21,8 @@ from datetime import datetime, timedelta, timezone
 API_KEY = os.environ.get("TWELVE_API_KEY", "")
 TG_TOKEN = os.environ.get("TELEGRAM_TOKEN", "")
 TG_CHAT = os.environ.get("TELEGRAM_CHAT_ID", "")
+AI_KEY = os.environ.get("GEMINI_API_KEY", "")     # optional and free: enables the AI second opinion
+AI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 SYMBOLS = [s.strip() for s in os.environ.get("SYMBOLS", "XAU/USD").split(",") if s.strip()]
 START_HOUR = int(os.environ.get("START_HOUR", "7"))     # UTC = Exness broker time
 END_HOUR = int(os.environ.get("END_HOUR", "17"))
@@ -211,6 +213,49 @@ def analyze(sym, now, h_raw, l_raw):
     return dict(stage="signal", key=key, text=txt)
 
 
+# ---------------- AI second opinion (optional) ------------------------------
+def candle_lines(bars, n, digits):
+    rows = []
+    for t, h, l, c in bars[:n][::-1]:  # oldest -> newest
+        rows.append(f"{t.strftime('%d %H:%M')} H{h:.{digits}f} L{l:.{digits}f} C{c:.{digits}f}")
+    return "\n".join(rows)
+
+
+def ai_opinion(sym, res, h_raw, l_raw, now):
+    """Asks Google Gemini (free tier) for a short review of the setup. Never predicts price. Fails silently."""
+    if not AI_KEY:
+        return ""
+    try:
+        d = SPECS.get(sym, DEFAULT_SPEC)["digits"]
+        _, hb = split_forming(h_raw, 30, now)
+        _, lb = split_forming(l_raw, 5, now)
+        prompt = (
+            f"You are reviewing a rule-based trade setup for a beginner who trades {sym} on a demo account.\n"
+            f"Current time (UTC): {now:%Y-%m-%d %H:%M}, {now:%A}.\n\n"
+            f"Rule-based alert:\n{res['text']}\n\n"
+            f"Last 30M candles (oldest to newest):\n{candle_lines(hb, 16, d)}\n\n"
+            f"Last 5M candles (oldest to newest):\n{candle_lines(lb, 36, d)}\n\n"
+            "Give a short second opinion in at most 70 words, in plain language:\n"
+            "- Verdict: TAKE, CAUTION or SKIP (judge only how clean and well-formed the setup looks).\n"
+            "- One or two concrete risks you can see in the candles (for example: stop is very tight, "
+            "price already extended, choppy range, thin session).\n"
+            "Do NOT predict where price will go and do not claim certainty. You cannot see news or the broker's spread."
+        )
+        body = json.dumps({"contents": [{"role": "user", "parts": [{"text": prompt}]}],
+                           "generationConfig": {"temperature": 0.3, "maxOutputTokens": 1500}}).encode()
+        req = urllib.request.Request(
+            f"https://generativelanguage.googleapis.com/v1beta/models/{AI_MODEL}:generateContent", data=body,
+            headers={"content-type": "application/json", "x-goog-api-key": AI_KEY})
+        with urllib.request.urlopen(req, timeout=40) as r:
+            data = json.load(r)
+        parts = (data.get("candidates") or [{}])[0].get("content", {}).get("parts", [])
+        txt = "".join(p.get("text", "") for p in parts).strip()
+        return ("\n\nAI second opinion (a review, not a prediction):\n" + txt) if txt else ""
+    except Exception as e:
+        print("AI opinion skipped:", e)
+        return ""
+
+
 # ---------------- main ------------------------------------------------------
 def load_state():
     try:
@@ -269,10 +314,10 @@ def main():
         if stage in ("forming", "signal") and key:
             done = st["alerts"].get(key)
             if stage == "forming" and done is None:
-                if tg_send(res["text"]):
+                if tg_send(res["text"] + ai_opinion(sym, res, h_raw, l_raw, now)):
                     st["alerts"][key] = "forming"
             elif stage == "signal" and done != "signal":
-                if tg_send(res["text"]):
+                if tg_send(res["text"] + ai_opinion(sym, res, h_raw, l_raw, now)):
                     st["alerts"][key] = "signal"
         elif stage == "missed" and key and key not in st["alerts"]:
             st["alerts"][key] = "missed"   # remember it, no message
