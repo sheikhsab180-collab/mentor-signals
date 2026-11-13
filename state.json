@@ -17,7 +17,8 @@
   "XAU/USD|2026-11-11 10:15": "forming",
   "XAU/USD|2026-11-11 10:35": "missed",
   "XAU/USD|2026-11-11 12:05": "forming",
-  "XAU/USD|2026-11-12 11:00": "signal"
+  "XAU/USD|2026-11-12 11:00": "signal",
+  "XAU/USD|2026-11-13 07:35": "forming"
  },
- "hello": "2026-11-12"
+ "hello": "2026-11-13"
 }
