@@ -1,6 +1,5 @@
 {
  "alerts": {
-  "XAU/USD|2026-11-03 16:30": "forming",
   "XAU/USD|2026-11-04 13:35": "forming",
   "XAU/USD|2026-11-06 09:20": "forming",
   "XAU/USD|2026-11-06 09:45": "missed",
@@ -39,7 +38,8 @@
   "XAU/USD|2026-11-24 11:00": "forming",
   "XAU/USD|2026-11-24 11:55": "signal",
   "XAU/USD|2026-11-26 12:05": "signal",
-  "XAU/USD|2026-11-26 13:30": "forming"
+  "XAU/USD|2026-11-26 13:30": "forming",
+  "XAU/USD|2026-11-26 14:05": "forming"
  },
  "hello": "2026-11-26"
 }
